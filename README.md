@@ -51,7 +51,7 @@ docker run -v finally-data:/app/db -p 8000:8000 --env-file .env finally
 finally/
 ├── frontend/    # Next.js static export
 ├── backend/     # FastAPI uv project
-├── planning/    # Project documentation and agent contracts
+├── planning/    # Project docs: PLAN.md, MARKET_DATA_SUMMARY.md, MARKET_DATA_DESIGN.md
 ├── test/        # Playwright E2E tests
 ├── db/          # SQLite volume mount (runtime)
 └── scripts/     # Start/stop helpers
