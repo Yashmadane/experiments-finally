@@ -425,20 +425,13 @@ The container is designed to deploy to AWS App Runner, Render, or any container 
 
 ## 12. Testing Strategy
 
-### Unit Tests (within `frontend/` and `backend/`)
+### Unit Tests ( and `backend/`)
 
 **Backend (pytest)**:
-- Market data: simulator generates valid prices, GBM math is correct, Massive API response parsing works, both implementations conform to the abstract interface
-- Portfolio: trade execution logic, P&L calculations, edge cases (selling more than owned, buying with insufficient cash, selling at a loss)
-- LLM: structured output parsing handles all valid schemas, graceful handling of malformed responses, trade validation within chat flow
-- API routes: correct status codes, response shapes, error handling
+  - Trade validation: insufficient cash rejects buy, oversell rejects sell                            
+  - P&L calculation: correct unrealized P&L math                                                      
+  - LLM mock: structured output parses correctly
 
-**Frontend (React Testing Library or similar)**:
-- Component rendering with mock data
-- Price flash animation triggers correctly on price changes
-- Watchlist CRUD operations
-- Portfolio display calculations
-- Chat message rendering and loading state
 
 ### E2E Tests (in `test/`)
 
@@ -447,10 +440,37 @@ The container is designed to deploy to AWS App Runner, Render, or any container 
 **Environment**: Tests run with `LLM_MOCK=true` by default for speed and determinism.
 
 **Key Scenarios**:
-- Fresh start: default watchlist appears, $10k balance shown, prices are streaming
-- Add and remove a ticker from the watchlist
-- Buy shares: cash decreases, position appears, portfolio updates
-- Sell shares: cash increases, position updates or disappears
-- Portfolio visualization: heatmap renders with correct colors, P&L chart has data points
-- AI chat (mocked): send a message, receive a response, trade execution appears inline
-- SSE resilience: disconnect and verify reconnection
+                                                                                                     
+  1. Fresh start — watchlist shows 10 tickers, $10k balance, prices streaming                         
+  2. Trade flow — buy shares → cash decreases, position appears                                       
+  3. Watchlist — add a ticker → appears; remove it → gone                                             
+  4. AI chat (mocked) — send message → response appears
+  5. Trade flow (sell) — sell all shares of a position → position disappears, cash increases
+
+---
+
+## 13. Review Notes & Open Questions
+
+### Clarifications Needed
+
+1. **SSE ticker scope**: Section 6 says the SSE stream pushes updates for "all tickers known to the system." Does this mean the full default seed list (10 tickers) regardless of watchlist, or only the user's current watchlist? If a user removes AAPL from their watchlist, does the simulator still generate AAPL prices? Clarifying this affects the price cache design.
+
+2. **Sparkline data source**: Sparklines are "accumulated on the frontend from the SSE stream since page load." This means a fresh page load starts with an empty sparkline. Is that acceptable UX, or should the backend expose a recent price history endpoint so sparklines pre-populate on load?
+
+3. **Portfolio snapshot timing**: Snapshots are recorded "every 30 seconds and immediately after each trade." Who owns the 30-second background task — is it the same task as the market data poller, or a separate one? This affects how the backend is structured.
+
+4. **LLM model ID**: Section 9 references `openrouter/openai/gpt-oss-120b` with Cerebras. Is this the final model, or a placeholder? The cerebras-inference skill should be consulted for the exact current model string to avoid runtime errors.
+
+5. **Fractional shares**: The schema supports fractional quantity (REAL), but the trade bar UI description only mentions a quantity field. Should the UI allow decimal input (e.g., 0.5 shares), or integer-only? The backend must accept whatever the frontend sends.
+
+6. **Chat actions display**: The plan says "trade executions and watchlist changes shown inline as confirmations" in the chat panel. What does this look like — a badge, a separate message bubble, a diff view? Needs a concrete decision before the frontend is built.
+
+### Simplification Opportunities
+
+1. **`docker-compose.yml` vs script**: The plan includes both `docker-compose.yml` (optional convenience) and `start_mac.sh` (the primary path). Pick one and commit. Two launch paths means double the documentation and double the confusion for students.
+
+2. **`portfolio_snapshots` background task**: If the P&L chart only needs ~100 data points, storing a snapshot every 30 seconds is sufficient but adds a background task. An alternative: store a snapshot only on trade execution, and let the frontend interpolate. Eliminates the timer entirely.
+
+
+
+
